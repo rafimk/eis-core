@@ -1,0 +1,17 @@
+{
+    "BrokerConfiguration": {
+        "url": "failover:(tcp://localhost:161616)?transport.randomize=true&transport.startupMaxReconnectAttempts=1&transport.timeout=2000",
+        "username": "admin",
+        "password": "admin",
+        "CronExpression": "0 0/1 * 1/1 * ? *",
+        "RefreshInterval": 1,
+        "InboxOutboxTimerPeriod": "0 0/1 * 1/1 * *"
+    },
+    "ApplicationSettings": [
+        {
+            "Name": "SCM-ITEM-MANAGEMENT",
+            "OutboundTopic": "topic.outbound.scm-item-management",
+            "InboundQueue": "queue.inbound.scm"
+        }
+    ]
+}
