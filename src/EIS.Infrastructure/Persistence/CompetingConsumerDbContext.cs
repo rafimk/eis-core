@@ -1,6 +1,7 @@
+using Dapper;
 using System.Security.Cryptography.X509Certificates;
 using System;
-using System.Data;
+using System.Data.SqlClient;
 
 namespace EIS.Infrastructure.Persistence;
 
