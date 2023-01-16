@@ -1,4 +1,8 @@
-namespace EIS.Infrastructure.Scheduler
+using EIS.Application.Interfaces;
+using EIS.Infrastructure.Scheduler.Jobs;
+using System;
+
+namespace EIS.Infrastructure.Scheduler;
 
 public class ConsumerKeepAliveJobSchedule : IJobSchedule 
 {
@@ -7,13 +11,13 @@ public class ConsumerKeepAliveJobSchedule : IJobSchedule
     public ConsumerKeepAliveJobSchedule(IConfigurationManager configManager)
     {
         _configManager = configManager;
-        JobType = typeof(ConsumerKeepAliveEntryPollerJob)
+        JobType = typeof(ConsumerKeepAliveEntryPollerJob);
 
     }
 
     public Type JobType { get; }
     
-    public string GetCronExpression
+    public string GetCronExpression()
     {
         return _configManager.GetBrokerConfiguration().CronExpression;
     }

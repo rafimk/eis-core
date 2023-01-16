@@ -1,9 +1,14 @@
-using System.Net.Mime;
 using System.IO;
-using System.Reflection.Metadata;
 using System;
 using System.Reflection.Emit;
 using System.Reflection;
+using EIS.Domain.Entities;
+using System.Collections.Generic;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Configuration;
+using EIS.Application.Interfaces;
+using EIS.Application.Constants;
+
 namespace EIS.Infrastructure.Configuration;
 
 public class ConfigurationManager : IConfigurationManager
@@ -45,15 +50,15 @@ public class ConfigurationManager : IConfigurationManager
         configurationBuilder.AddJsonStream(stream);
         var configSectionFromFile = configurationBuilder.Build();
         configSectionFromFile.GetSection("ApplicationSettings").Bind(applicationSettingsList);
-        _appSetting = GetAppSettingsFromList(applicationSettingsList);
+        var _appSetting = GetAppSettingsFromList(applicationSettingsList);
 
         GlobalVariables.IsMessageQueueSubscribed = _messageSubscription;
 
         if (environment != null)
         {
-            eissettingsFileName = eisSettingsFileName.Replace(".json", string.Empty) + "-" + Environment.ToLower() + ".json";
-            _log.LogInformation("Loading : {n}", eissettingsFileName);
-            stream = assembly.GetManifestResourceStream(eissettingsFileName);
+            eisSettingsFileName = eisSettingsFileName.Replace(".json", string.Empty) + "-" + Environment.ToLower() + ".json";
+            _log.LogInformation("Loading : {n}", eisSettingsFileName);
+            stream = assembly.GetManifestResourceStream(eisSettingsFileName);
             configurationBuilder = new ConfigurationBuilder();
             configurationBuilder.AddJsonStream(stream);
             configSectionFromFile = configurationBuilder.Build();
@@ -62,17 +67,17 @@ public class ConfigurationManager : IConfigurationManager
         }
         else
         {
-            _log.LogInformation("Environment is null, loading from : {n}", eissettingsFileName);
-            stream = assembly.GetManifestResourceStream(eissettingsFileName);
+            _log.LogInformation("Environment is null, loading from : {n}", eisSettingsFileName);
+            stream = assembly.GetManifestResourceStream(eisSettingsFileName);
             configurationBuilder = new ConfigurationBuilder();
-            configurationBuilder.AddJsonStream(stream);
+            configurationBuilder.AddJsonStream(stream); 
             configSectionFromFile = configurationBuilder.Build();
             configSectionFromFile.GetSection("BrokerConfiguration").Bind(brokerConfigurationClass); // Bind broker settings to BrokerConfiguration class.
             _brokerConfiguration = brokerConfigurationClass;
         }
         stream.Close();
         _log.LogInformation("Consumer connection Quartz Job... Cron: [" + _brokerConfiguration.CronExpression + "]");
-        _log.LogInformation("Inbox - Outbox      Quarts Job... Cron: [" + _brokerConfiguration.InboxOutboxTimePeriod + "]");
+        _log.LogInformation("Inbox - Outbox      Quarts Job... Cron: [" + _brokerConfiguration.InboxOutboxTimerPeriod + "]");
     }
 
     public string GetBrokerUrl()

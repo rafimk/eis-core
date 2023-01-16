@@ -1,7 +1,13 @@
+using EIS.Application.Interfaces;
+using EIS.Domain.Entities;
+using Microsoft.Extensions.Logging;
 using System;
-namespace EIS.Infrastructure.Services
+using System.Threading;
+using System.Threading.Tasks;
 
-public class EventPublisherService : iEventPublisherService
+namespace EIS.Infrastructure.Services;
+
+public class EventPublisherService : IEventPublisherService
 {
     private readonly IConfigurationManager _configManager;
     private readonly ILogger<EventPublisherService> _log;
@@ -9,10 +15,11 @@ public class EventPublisherService : iEventPublisherService
 
     protected static readonly TimeSpan receiveTimeout = TimeSpan.FromSeconds(10);
 
-    public EventPublisherService(IConfigurationManager configManager, IMessageQueueManager messageQueueManager, ILogger<EventPublisherService> log)
+    public EventPublisherService(IConfigurationManager configManager, IMessageQueueManager messageQueueManager, 
+        ILogger<EventPublisherService> log)
     {
         _configManager = configManager;
-        _messageQueueManager = messageQueueManager
+        _messageQueueManager = messageQueueManager;
         _log = log;
     }
 
@@ -36,7 +43,7 @@ public class EventPublisherService : iEventPublisherService
         EisEvent eisEvent = new EisEvent
         {
             EventId = Guid.NewGuid().ToString(),
-            EventType = messageProducer.GetEventType();
+            EventType = messageProducer.GetEventType(),
             TraceId = messageProducer.GetTraceId(),
             SpanId = Guid.NewGuid().ToString(),
             CreatedDate = DateTime.Now,

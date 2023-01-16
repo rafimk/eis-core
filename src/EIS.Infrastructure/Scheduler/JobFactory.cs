@@ -1,4 +1,8 @@
-namespace EIS.Infrastructure.Scheduler
+using Quartz;
+using Quartz.Spi;
+using System;
+
+namespace EIS.Infrastructure.Scheduler;
 
 public class JobFactory : IJobFactory
 {
@@ -9,8 +13,11 @@ public class JobFactory : IJobFactory
         _serviceProvider = serviceProvider;
     }
 
-    public ReturnJob(IJob job)
+    public IJob NewJob(TriggerFiredBundle bundle, IScheduler scheduler)
     {
-        
+    }
+
+    public void ReturnJob(IJob job)
+    {
     }
 }

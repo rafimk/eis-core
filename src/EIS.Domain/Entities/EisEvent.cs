@@ -1,3 +1,5 @@
+using System;
+
 namespace EIS.Domain.Entities
 {
     public class EisEvent

@@ -1,4 +1,14 @@
+using Dapper;
+using EIS.Application.Interfaces;
+using EIS.Application.Util;
+using EIS.Domain.Entities;
+using Microsoft.Data.SqlClient;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using System;
+using System.Collections.Generic;
+using System.Threading.Tasks;
+
 namespace EIS.Infrastructure.Persistence;
 
 public class EventInboxOutboxDbContext : IEventInboxOutboxDbContext
@@ -7,7 +17,7 @@ public class EventInboxOutboxDbContext : IEventInboxOutboxDbContext
     private readonly ILogger<EventInboxOutboxDbContext> _log;
     private readonly IConfiguration _configuration;
 
-    public EventInboxOutboxDbContext(IConfiguration configuration, ILogger<EventInboxOutboxDbContext> _log)
+    public EventInboxOutboxDbContext(IConfiguration configuration, ILogger<EventInboxOutboxDbContext> log)
     {
         _log = log;
         _configuration = configuration;
@@ -29,7 +39,7 @@ public class EventInboxOutboxDbContext : IEventInboxOutboxDbContext
 
                 _log.LogDebug("Executing query: {sql} with variables [{Id}, {eisEvent.EventId}, {topicQueueName}, {objString}, {direction}]", sql, id, eisEvent.EventId, topicQueueName, objString, direction);
 
-                return await connection.ExecuteAsync(sql, new { Id, eisEvent.EventId, topicQueName, objString, direction });
+                return await connection.ExecuteAsync(sql, new { Id, eisEvent.EventId, topicQueueName, objString, direction });
             }
             catch (Exception e)
             {
@@ -47,7 +57,7 @@ public class EventInboxOutboxDbContext : IEventInboxOutboxDbContext
         {
             try
             {
-                _log.LogDebug("Executing query : {sql} with variables [{eventStatus}, {eventId}, {topicQueueName}, {direction}]"), sql, eventStatus, eventId, topicQueueName, direction);
+                _log.LogDebug("Executing query : {sql} with variables [{eventStatus}, {eventId}, {topicQueueName}, {direction}]", sql, eventStatus, eventId, topicQueueName, direction);
                 return await connection.ExecuteAsync(sql, new { eventStatus, eventId, topicQueueName, direction});
             }
             catch (Exception e)

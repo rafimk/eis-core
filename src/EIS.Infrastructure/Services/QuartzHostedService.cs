@@ -1,7 +1,13 @@
 using System;
 using System.Threading.Tasks;
 using System.Threading;
-namespace EIS.Infrastructure.Services
+using Microsoft.Extensions.Hosting;
+using Quartz;
+using Quartz.Spi;
+using System.Collections.Generic;
+using EIS.Application.Interfaces;
+
+namespace EIS.Infrastructure.Services;
 
 public class QuartzHostedService : IHostedService
 {
@@ -21,7 +27,7 @@ public class QuartzHostedService : IHostedService
     public async Task StartAsync(CancellationToken cancellationToken)
     {
         Scheduler = await _schedulerFactory.GetScheduler(cancellationToken);
-        TaskScheduler.JobFactory = _jobFactory;
+        // TaskScheduler.JobFactory = _jobFactory;
 
         foreach (var jobSchedule in _jobSchedules)
         {
@@ -49,7 +55,7 @@ public class QuartzHostedService : IHostedService
                              .Build();
     }
 
-    public static IJobDetails CreateJob(IJobSchedule schedule)
+    public static IJobDetail CreateJob(IJobSchedule schedule)
     {
         var jobType = schedule.JobType;
         return JobBuilder.Create(jobType)

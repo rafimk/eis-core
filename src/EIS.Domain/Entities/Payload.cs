@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+
 namespace EIS.Domain.Entities
 {
     public class Payload
@@ -24,9 +26,9 @@ namespace EIS.Domain.Entities
             SourceSystemName = sourceSystemName;
         }
 
-        public TOutput ConvertContent<TOutput>(object payloadContent)
-        {
-            return (TOutput)JsonSerializerUtil.Deserialize(payloadContent.ToString(), typeof(TOutput));
-        }
+        //public TOutput ConvertContent<TOutput>(object payloadContent)
+        //{
+        //    return (TOutput)JsonSerializerUtil.Deserialize(payloadContent.ToString(), typeof(TOutput));
+        //}
     }
 }

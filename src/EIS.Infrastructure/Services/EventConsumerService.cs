@@ -1,4 +1,9 @@
-namespace EIS.Infrastructure.Services
+using EIS.Application.Constants;
+using EIS.Application.Interfaces;
+using EIS.Domain.Entities;
+using System.Threading.Tasks;
+
+namespace EIS.Infrastructure.Services;
 
 public class EventConsumerService
 {
@@ -13,7 +18,7 @@ public class EventConsumerService
 
     public async Task<int> UpdateProcessEventStatus(EisEvent eisEvent, string eventStatus)
     {
-        return await _eventInboxOutboxDbContext.UpdateProcessEventStatus(eisEvent.EventId, _inboundQueue, eventStatus, AtleastOnceDeliveryDirection.IN);
+        return await _eventInboxOutboxDbContext.UpdateEventStatus(eisEvent.EventId, _inboundQueue, eventStatus, AtLeastOnceDeliveryDirection.IN);
     }
 
 }

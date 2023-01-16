@@ -1,5 +1,8 @@
+using EIS.Application.Constants;
+using EIS.Application.Interfaces;
+using Quartz;
 using System.Threading.Tasks;
-namespace EIS.Infrastructure.Scheduler.Jobs
+namespace EIS.Infrastructure.Scheduler.Jobs;
 
 [DisallowConcurrentExecution]
 public class ConsumerKeepAliveEntryPollerJob : IJob
@@ -11,13 +14,13 @@ public class ConsumerKeepAliveEntryPollerJob : IJob
         _messageQueueManager = messageQueueManager;
     }
 
-    public await Task Execute(IJobExecutionContext context)
+    public async Task Execute(IJobExecutionContext context)
     {
         if (GlobalVariables.IsDatabaseTablesInitialized && GlobalVariables.IsMessageQueueSubscribed)
         {
-            _messageQueueManager.ConsumerKeepAliveTask();
+            await _messageQueueManager.ConsumerKeepAliveTask();
         }
 
-        return Task.CompletedTask;
+        await Task.CompletedTask;
     }
 }

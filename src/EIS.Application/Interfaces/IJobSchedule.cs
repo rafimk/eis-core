@@ -1,9 +1,10 @@
-namespace EIS.Application.Interfaces
+using System;
+
+namespace EIS.Application.Interfaces;
+
+public interface IJobSchedule
 {
-    public interface IJobSchedule
-    {
-        Type JobType { get; }
-        
-        string GetCronExpression();
-    }
+    Type JobType { get; }
+    
+    string GetCronExpression();
 }

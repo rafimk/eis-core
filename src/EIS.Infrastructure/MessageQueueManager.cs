@@ -4,23 +4,32 @@ using System.Net;
 using System;
 using System.ComponentModel;
 using System.Diagnostics.Tracing;
-namespace EIS.Infrastructure
+using EIS.Application.Interfaces;
+using Microsoft.Extensions.Logging;
+using EIS.Infrastructure.Configuration;
+using EIS.Application.Util;
+using System.Threading.Tasks;
+using EIS.Application.Constants;
+using EIS.Domain.Entities;
+using System.Collections.Generic;
+
+namespace EIS.Infrastructure;
 
 public class MessageQueueManager : IMessageQueueManager
 {
-    private readonly IBrokerConnectionFactory _brokerConnectionFactory;
-    private readonly IEventInboxOutboxDbContext = _eventInboxOutboxDbContext;
-    private readonly ICompetingConsumerDbContext = _competingConsumerDbContext;
+    private readonly IBrockerConnectionFactory _brokerConnectionFactory;
+    private readonly IEventInboxOutboxDbContext _eventInboxOutboxDbContext;
+    private readonly ICompetingConsumerDbContext _competingConsumerDbContext;
     private readonly IConfigurationManager _configManager;
     private readonly ILogger<MessageQueueManager> _log;
     private readonly EventHandlerRegistry _eventRegistry;
     private readonly string eisHostIp;
-    private readonly _OutboundTopic;
-    private readonly _InboundQueue;
+    private readonly string _OutboundTopic;
+    private readonly string _InboundQueue;
 
-    public MessageQueueManager(IBrokerConnectionFactory brokerConnectionFactory, 
-            IEventInboxOutboxDbContext = eventInboxOutboxDbContext,
-            ICompetingConsumerDbContext = dbContext,
+    public MessageQueueManager(IBrockerConnectionFactory brokerConnectionFactory, 
+            IEventInboxOutboxDbContext eventInboxOutboxDbContext,
+            ICompetingConsumerDbContext competingConsumerDbContext,
             IConfigurationManager configManager,
             ILogger<MessageQueueManager> log, 
             EventHandlerRegistry eventRegistry
@@ -34,8 +43,8 @@ public class MessageQueueManager : IMessageQueueManager
         _eventRegistry = eventRegistry;
         eisHostIp = UtilityClass.GetLocalIpAddress();
         _competingConsumerDbContext.SetHostIpAddress(eisHostIp);
-        _OutboundTopic = _config.GetAppSettings().OutboundTopic;
-        _InboundQueue = _configManager.GetAppSettings()._InboundQueue;
+        _OutboundTopic = configManager.GetAppSettings().OutboundTopic;
+        _InboundQueue = _configManager.GetAppSettings().InboundQueue;
 
         if (_configManager.GetMessageSubscriptionStatus())
         {
@@ -47,7 +56,7 @@ public class MessageQueueManager : IMessageQueueManager
     {
         if (!GlobalVariables.IsTransportInterrupted)
         {
-            await ProcessAllUnprocessedOutboxEvents();
+            await ProcessAllUnProcessedOutboxEvents();
         }
 
         if (GlobalVariables.IsCurrentIpLockedForConsumer)
@@ -56,42 +65,26 @@ public class MessageQueueManager : IMessageQueueManager
         }
         else
         {
-            _log.LogInformation("QuartzInboxoutboxPollerJob >> not locked for broker connection")
+            _log.LogInformation("QuartzInboxoutboxPollerJob >> not locked for broker connection");
         }
     }
 
-    private async Task InboxOutboxPollerTask()
-    {
-        if (!GlobalVariables.IsTransportInterrupted)
-        {
-            await ProcessAllUnprocessedOutboxEvents();
-        }
-
-        if (GlobalVariables.IsCurrentIpLockedForConsumer)
-        {
-            await ProcessAllUnprocessedInboxEvents();
-        }
-        else
-        {
-            _log.LogInformation("QuartzInboxPollerJob >> not locked for broker connection");
-        }
-    }
 
     private async Task ProcessAllUnprocessedInboxEvents()
     {
-        var inboxEventsList = await _eventINOUTDbContext .GetAllUnprocessedEvents(AtLeastOnceDeliveryDirection.IN, _InboundQueue);
+        var inboxEventsList = await _eventInboxOutboxDbContext.GetAllUnprocessedEvents(AtLeastOnceDeliveryDirection.IN, _InboundQueue);
 
         if (inboxEventsList != null && inboxEventsList.Count > 0)
         {
             string _eventID = null;
             _log.LogInformation("INBOX: UnprocessedInboxEvents data are available: {c}", inboxEventsList.Count);
-            foreach (var events in inboxEventList)
+            foreach (var events in inboxEventsList)
             {
                 try
                 {
-                    _eventID = EventSource.EventId;
-                    _log.LogDebug(Events.EisEvent);
-                    EisEvent eisEvent = JsonSerializerUtil.DeserializerObject<EisEvent>(events.EisEvent);
+                    _eventID = events.EventId;
+                    _log.LogDebug(events.EisEvent);
+                    EisEvent eisEvent = JsonSerializerUtil.DeserializeObject<EisEvent>(events.EisEvent);
                     _log.LogDebug("Processing Event ID: {_eventID}", events.EventId);
                     if (_eventID == null)
                     {
@@ -100,7 +93,7 @@ public class MessageQueueManager : IMessageQueueManager
                     }
 
                     await ConsumeEvent(eisEvent, events.TopicQueueName);
-                    var recordUpdatesStatus = await _eventINOUTDbContext.UpdateEventStatus(_eventID, _InboundQueue, EisSystemVariables.PROCESSED, AtLeastOnceDeliveryDirection.IN);
+                    var recordUpdatesStatus = await _eventInboxOutboxDbContext.UpdateEventStatus(_eventID, _InboundQueue, EisSystemVariables.PROCESSED, AtLeastOnceDeliveryDirection.IN);
                     _log.LogInformation("Processed {e}, with status {s} ", _eventID.ToString(), recordUpdatesStatus);
                 }
                 catch (Exception ex)
@@ -109,7 +102,7 @@ public class MessageQueueManager : IMessageQueueManager
 
                     if (_eventID != null)
                     {
-                        await _eventINOUTDbContext.UpdateEventStatus(_eventID, _InboundQueue, EisSystemVariables.FAILED, AtLeastOnceDeliveryDirection.IN);
+                        await _eventInboxOutboxDbContext.UpdateEventStatus(_eventID, _InboundQueue, EisSystemVariables.FAILED, AtLeastOnceDeliveryDirection.IN);
                     }
                 }
             }
@@ -122,7 +115,7 @@ public class MessageQueueManager : IMessageQueueManager
 
     private async Task ProcessAllUnProcessedOutboxEvents()
     {
-        var outboxEventsList = await _eventINOUTDbContext.GetAllUnprocessedEvents(AtLeastOnceDeliveryDirection.OUT, _OutboundTopic);
+        var outboxEventsList = await _eventInboxOutboxDbContext.GetAllUnprocessedEvents(AtLeastOnceDeliveryDirection.OUT, _OutboundTopic);
         if (outboxEventsList != null && outboxEventsList.Count > 0)
         {
             string _eventID = null;
@@ -135,9 +128,9 @@ public class MessageQueueManager : IMessageQueueManager
                 try
                 {
                     _eventID = events.EventId;
-                    eisEvent = JsonSerializerUtil.DeserializerObject<EisEvent>(events.EisEvent);
+                    eisEvent = JsonSerializerUtil.DeserializeObject<EisEvent>(events.EisEvent);
 
-                    if (eisEvent = null || _eventID == null)
+                    if (eisEvent is null || _eventID is null)
                     {
                         throw new Exception("ProcessAllUnprocessedOutBoxEvents::Event ID returned null");
                     }
@@ -150,29 +143,29 @@ public class MessageQueueManager : IMessageQueueManager
 
                     if (eisEvent == null || _eventID == null)
                     {
-                        await _eventINOUTDbContext.UpdateEventStatus(_eventID, OutboundTopic, EisSystemVariables.FAILED, AtLeastOnceDeliveryDirection.OUT);
+                        await _eventInboxOutboxDbContext.UpdateEventStatus(_eventID, _OutboundTopic, EisSystemVariables.FAILED, AtLeastOnceDeliveryDirection.OUT);
                     }
                 }
             }
-            else
-            {
-                GlobalVariables.IsUnprocessedOutMessagePresentInDB = false;
-            }
+        }
+        else
+        {
+            GlobalVariables.IsUnprocessedOutMessagePresentInDB = false;
         }
     }
 
     public async Task TryPublish(EisEvent eisEvent)
     {
-        List<EisEventInboxOutbox> outboxEventList = await _eventINOUTDbContext.GetAllUnprocessedEvents(AtLeastOnceDeliveryDirection.OUT, _OutboundTopic);
-        var recordInsertCount = await _eventINOUTDbContext.TryEventInsert(eisEvent, _OutboundTopic, AtLeastOnceDeliveryDirection.OUT);
+        List<EisEventInboxOutbox> outboxEventList = await _eventInboxOutboxDbContext.GetAllUnprocessedEvents(AtLeastOnceDeliveryDirection.OUT, _OutboundTopic);
+        var recordInsertCount = await _eventInboxOutboxDbContext.TryEventInsert(eisEvent, _OutboundTopic, AtLeastOnceDeliveryDirection.OUT);
 
         if (recordInsertCount == 1)
         {
             _log.LogInformation("OUTBOX::New [Insert] status: {a}", recordInsertCount);
 
-            if (outboxEventsList != null && outboxEventsList.Count > 0)
+            if (outboxEventList != null && outboxEventList.Count > 0)
             {
-                await ProcessAllUnprocessedOutBoxEvents();
+                await ProcessAllUnProcessedOutboxEvents();
             }
             else
             {
@@ -197,7 +190,7 @@ public class MessageQueueManager : IMessageQueueManager
     {
         try
         {
-            _brokerConnectionFactory.PublishToTopic(eisEvent);
+            _brokerConnectionFactory.PublishTopic(eisEvent);
         }
         catch (Exception ex)
         {
@@ -205,7 +198,7 @@ public class MessageQueueManager : IMessageQueueManager
             throw;
         }
 
-        var recordUpdatesStatus = await _eventINOUTDbContext.UpdateEventStatus(eisEvent.EventId, _OutboundTopic, EisSystemVariables.PROCESSED, AtLeastOnceDeliveryDirection.OUT);
+        var recordUpdatesStatus = await _eventInboxOutboxDbContext.UpdateEventStatus(eisEvent.EventId, _OutboundTopic, EisSystemVariables.PROCESSED, AtLeastOnceDeliveryDirection.OUT);
         _log.LogInformation("OUTBOX::Processed {e}, with status {s}", eisEvent.EventId.ToString(), recordUpdatesStatus);
     }
 
@@ -217,7 +210,7 @@ public class MessageQueueManager : IMessageQueueManager
     public async Task ConsumerKeepAliveTask()
     {
         var eisGroupKey = _configManager.GetSourceSystemName() + "_COMPETING_CONSUMER_GROUP";
-        var refreshInterval = _configManager.GetBrokerConfiguration().refreshInterval;
+        var refreshInterval = _configManager.GetBrokerConfiguration().RefreshInterval;
 
         try
         {
@@ -229,20 +222,20 @@ public class MessageQueueManager : IMessageQueueManager
             if (insertResult == 1)
             {
                 _brokerConnectionFactory.CreateConsumerListener();
-                _log.LogInformation("*** Consumer locked for: {ip} in group: {groupKey}", hostIp, eisGroupKey);
+                _log.LogInformation("*** Consumer locked for: {ip} in group: {groupKey}", hostIP, eisGroupKey);
                 GlobalVariables.IsCurrentIpLockedForConsumer = true;
             }
             else
             {
-                string IpAddress = _competingConsumerDbContext.GetIPAddressOfServer(eisGroupKey, refreshInterval);
-                _log.LogInformation("IP Address from server::" + IpAddress);
+                string ipAddress = _competingConsumerDbContext.GetIpAddressOfServer(eisGroupKey, refreshInterval);
+                _log.LogInformation("IP Address from server::" + ipAddress);
                 
-                if (IPAddress != null)
+                if (ipAddress != null)
                 {
                     _log.LogInformation($"Current IP: [{eisHostIp}]");
-                    _log.LogInformation("IsIPAddressMatchesWithGroupEntry(IpAddress): " + IsIPAddressMatchesWithGroupEntry(IpAddress));
+                    _log.LogInformation("IsIPAddressMatchesWithGroupEntry(IpAddress): " + IsIPAddressMatchesWithGroupEntry(ipAddress));
 
-                    if (!IsIPAddressMatchesWithGroupEntry(IpAddress))
+                    if (!IsIPAddressMatchesWithGroupEntry(ipAddress))
                     {
                         _brokerConnectionFactory.DestroyConsumerConnection();
                         GlobalVariables.IsCurrentIpLockedForConsumer = false;
@@ -259,7 +252,7 @@ public class MessageQueueManager : IMessageQueueManager
                         }
                         else
                         {
-                            IsLong.LogInformation("Keep alive entry will start once broker connections are fully established");
+                            _log.LogInformation("Keep alive entry will start once broker connections are fully established");
                         }
                     }
                 }
@@ -281,13 +274,17 @@ public class MessageQueueManager : IMessageQueueManager
 
     private bool IsIPAddressMatchesWithGroupEntry(string ipAddress)
     {
-        bool flag = IPAddress.Equals(eisHostIp);
+        bool flag = ipAddress.Equals(eisHostIp);
 
         if (flag)
         {
-            GlobalVariables.IsCurrentIpLockedConsumer = true;
+            GlobalVariables.IsCurrentIpLockedForConsumer = true;
         }
         return flag;
     }
 
+    public Task ConsumerEvent(EisEvent eisEvent, string queueName)
+    {
+        throw new NotImplementedException();
+    }
 }

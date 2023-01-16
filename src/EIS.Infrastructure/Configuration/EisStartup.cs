@@ -1,12 +1,17 @@
-using System.Net.Mime;
 using System;
-using System.Net.NetworkInformation;
-using System.Buffers;
-using System.Security.Authentication.ExtendedProtection;
-using System.Runtime.Serialization;
 using System.Collections.Specialized;
-using System.Net.Security;
-using System.ComponentModel.Design;
+using Microsoft.Extensions.DependencyInjection;
+using EIS.Application.Interfaces;
+using EIS.Infrastructure.Persistence;
+using EIS.Domain.Entities;
+using Quartz.Spi;
+using EIS.Infrastructure.Scheduler;
+using EIS.Infrastructure.Services;
+using Quartz.Impl;
+using Quartz;
+using EIS.Infrastructure.Scheduler.Jobs;
+using Microsoft.AspNetCore.Builder;
+
 namespace EIS.Infrastructure.Configuration;
 
 public static class EisStartup
@@ -19,7 +24,7 @@ public static class EisStartup
         services.AddSingleton<IDatabaseBootstrap, DatabaseBootstrap>();
         services.AddSingleton<BrokerConfiguration>();
         services.AddSingleton<EventHandlerRegistry>();
-        services.AddSingleton<IBrokerConnectionFactory, BrokerConnectionFactory>();
+        services.AddSingleton<IBrockerConnectionFactory, BrokerConnectionFactory>();
         services.AddSingleton<IMessageQueueManager, MessageQueueManager>();
         services.AddSingleton<IEventPublisherService, EventPublisherService>();
         services.AddSingleton<IJobFactory, JobFactory>();
@@ -45,7 +50,7 @@ public static class EisStartup
         services.AddSingleton<InboxOutboxPollerJob>();
         services.AddSingleton<IJobSchedule, ConsumerKeepAliveJobSchedule>();
         services.AddSingleton<IJobSchedule, InboxOutboxPollerJobSchedule>();
-        return service;
+        return services;
     }
 
     public static IApplicationBuilder AddEISProcessor<T>(this IApplicationBuilder app) where T : IMessageProcessor
@@ -55,16 +60,16 @@ public static class EisStartup
             var scopedFactory = app.ApplicationServices.GetRequiredService<IServiceScopeFactory>();
             var scope = scopedFactory?.CreateScope();
             var eventProcessor = (T)scope?.ServiceProvider?.GetRequiredService<IMessageProcessor>();
-            EventHandlerRegistry eventHandlerRegistry = app.ApplicationService.GetService<EventHandlerRegistry>();
+            EventHandlerRegistry eventHandlerRegistry = app.ApplicationServices.GetService<EventHandlerRegistry>();
             eventHandlerRegistry?.AddMessageProcessor(eventProcessor);
         }
         return AddEISProcessor(app);
     }
 
-    public static IApplicationBuilder AddEISProcessor(this IApplication app)
+    public static IApplicationBuilder AddEISProcessor(this IApplicationBuilder app)
     {
-        app.ApplicationService.GetRequiredService<IMessageQueueManager>();
-        app.ApplicationService.GetRequiredService<IDatabaseBootstrap>();
+        app.ApplicationServices.GetRequiredService<IMessageQueueManager>();
+        app.ApplicationServices.GetRequiredService<IDatabaseBootstrap>();
 
         return app;
     }

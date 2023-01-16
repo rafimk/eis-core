@@ -1,6 +1,14 @@
-using System.Xml.Linq;
 using System.IO;
 using System.Reflection;
+using EIS.Application.Interfaces;
+using Microsoft.Extensions.Configuration;
+using System;
+using EIS.Application.Constants;
+using Microsoft.Data.SqlClient;
+using Dapper;
+using System.Collections.Generic;
+using EIS.Domain.Entities;
+
 namespace EIS.Infrastructure.Persistence;
 
 public class DatabaseBootstrap : IDatabaseBootstrap
@@ -17,16 +25,16 @@ public class DatabaseBootstrap : IDatabaseBootstrap
         _eventINOUTDbContext = eventINOUTDbContext;
         _databaseName = configuration.GetConnectionString("DefaultConnection");
         Setup();
-        _OutboundTopic = configuration.GetAppSettings().OutboundTopic;
-        _InboundQueue = configuration.GetAppSettings().InboundQueue;
+        _OutboundTopic = configManager.GetAppSettings().OutboundTopic;
+        _InboundQueue = configManager.GetAppSettings().InboundQueue;
 
-        InitiateUnProcessedInOutMessage();
+        InitiateUnprocessedINOUTMessages();
     }
 
     public void Setup()
     {
         Console.WriteLine("Setup....");
-        using (car connection = new SqlConnection(_databaseName))
+        using (var connection = new SqlConnection(_databaseName))
         {
             try
             {
@@ -37,7 +45,7 @@ public class DatabaseBootstrap : IDatabaseBootstrap
 
                 string result = "";
 
-                using (Stream stream = assembly.GetManifestResourceStream(resourceName));
+                using (Stream stream = assembly.GetManifestResourceStream(resourceName))
 
                 using (StreamReader reader = new StreamReader(stream))
                 {
@@ -70,8 +78,8 @@ public class DatabaseBootstrap : IDatabaseBootstrap
 
     public async void InitiateUnprocessedINOUTMessages()
     {
-        List<EisEventInboxOutbox> inboxEventList = await _eventINOUTDbContext.GetAllUnprocessedEvents(AtleastOnceDeliveryDirection.IN, _InboundQueue);
-        List<EisEventInboxOutbox> outboxEventList = await _eventINOUTDbContext.GetAllUnprocessedEvents(AtleastOnceDeliveryDirection.OUT, _OutboundQueue);
+        List<EisEventInboxOutbox> inboxEventList = await _eventINOUTDbContext.GetAllUnprocessedEvents(AtLeastOnceDeliveryDirection.IN, _InboundQueue);
+        List<EisEventInboxOutbox> outboxEventList = await _eventINOUTDbContext.GetAllUnprocessedEvents(AtLeastOnceDeliveryDirection.OUT, _OutboundTopic);
 
         if (inboxEventList != null && inboxEventList.Count > 0)
         {
@@ -84,11 +92,11 @@ public class DatabaseBootstrap : IDatabaseBootstrap
 
          if (outboxEventList != null && outboxEventList.Count > 0)
         {
-            GlobalVariables.IsUnprocessedOutMessagePresentInDB = true;
+            GlobalVariables.isUnprocessedOutMessagePresentInDB = true;
         }
         else
         {
-            GlobalVariables.IsUnprocessedOutMessagePresentInDB = false;
+            GlobalVariables.isUnprocessedOutMessagePresentInDB = false;
         }
 
     }

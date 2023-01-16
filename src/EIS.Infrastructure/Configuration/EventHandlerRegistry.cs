@@ -1,6 +1,8 @@
+using EIS.Application.Interfaces;
+
 namespace EIS.Infrastructure.Configuration;
 
-public class EventHandlerRegistry
+public class EventHandlerRegistry : IEventHandlerRegistry
 {
     private IMessageProcessor _messageProcessor;
 

@@ -1,43 +1,49 @@
-using System.Globalization;
-using System.Data;
-using System.Net;
-using System.Transactions;
-using System.Runtime.InteropServices;
-using System.Net.Cache;
-using System.ComponentModel;
-using System.Diagnostics.Contracts;
-using System.Security.Cryptography.X509Certificates;
 using System;
+using EIS.Domain.Entities;
+using EIS.Application.Interfaces;
+using Apache.NMS;
+using Microsoft.Extensions.Logging;
+using Apache.NMS.Util;
+using EIS.Application.Util;
+using System.Threading.Tasks;
+using EIS.Application.Constants;
+using System.Text.Json;
 
-namespace EIS.Infrastructure.Configuration
+namespace EIS.Infrastructure.Configuration;
 
-public class BrokerConnectionFactory : IBrokerConnectionFactory
+public class BrokerConnectionFactory : IBrockerConnectionFactory
 {
-    private bool isDisposed = false;
+    
     private readonly ILogger<BrokerConnectionFactory> _log;
     private readonly BrokerConfiguration _brokerConfiguration;
-    private readonly ApplicationSettings _appSettings;
     private readonly IConfigurationManager _configManager;
-    private readonly IConnection _ConsumerConnection;
     private readonly IConnectionFactory _factory;
+
     private static TimeSpan receiveTimeout = TimeSpan.FromSeconds(10);
-    private readonly IMessageConsumer _messageConsumer;
+
     private readonly Uri _connectUri;
     private readonly ConnectionInterruptedListener interruptedListener = null;
     private readonly ExceptionListener connectionExceptionListener = null;
 
-    private readonly IEventInboxOutboxDbContext _eventInOutDbContext;
     private readonly EventHandlerRegistry _eventRegistry;
 
-    public BrokerConnectionFactory(ICconfigurationManager configurationManager, IEventInboxOutboxDbContext eventInOutDbContext,
+    private bool isDisposed = false;
+    private ApplicationSettings _appSettings;
+    private IMessageConsumer _messageConsumer;
+    private IConnection _publisherConnection = null;
+    private IConnection _consumerConnection;
+
+    private IEventInboxOutboxDbContext _eventInOutDbContext;
+
+    public BrokerConnectionFactory(IConfigurationManager configurationManager, IEventInboxOutboxDbContext eventInOutDbContext,
     ILogger<BrokerConnectionFactory> log)
     {
         _log = log;
         _configManager = configurationManager;
-        _appSetting = configurationManager.GetAppSettings();
+        var _appSetting = configurationManager.GetAppSettings();
         _brokerConfiguration = _configManager.GetBrokerConfiguration();
-        _eventRegistry = eventHandlerRegistry();
-        var brokerUri = _configManager.GetBrokerUrl();
+        _eventRegistry = new EventHandlerRegistry();
+        var brokerUrl = _configManager.GetBrokeUrl();
         _log.LogInformation("Broker Connection Factory >> Initializing broker connections.");
         _log.LogInformation("Broker - {brokerUrl}", brokerUrl);
         _connectUri = new Uri(brokerUrl);
@@ -45,7 +51,7 @@ public class BrokerConnectionFactory : IBrokerConnectionFactory
 
         _factory = factory;
         _eventInOutDbContext = eventInOutDbContext;
-        _ConsumerConnection = null;
+        _consumerConnection = null;
 
         interruptedListener = new ConnectionInterruptedListener(OnConnectionInterruptedListener);
         connectionExceptionListener = new ExceptionListener(OnExceptionListener);
@@ -53,41 +59,40 @@ public class BrokerConnectionFactory : IBrokerConnectionFactory
 
     private void PublishMessageToTopic(string message)
     {
-        IConnection publisherConnection = null;
 
         try
         {
-            publisherConnection = _factory.CreateConnection(_brokerConfiguration.Username, _brokerConfiguration.Password);    
-            publisherConnection.RequestTimeout = TimeSpanConverter.FromSeconds(30);
+            _publisherConnection = _factory.CreateConnection(_brokerConfiguration.Username, _brokerConfiguration.Password);
+            _publisherConnection.RequestTimeout = TimeSpan.FromSeconds(30);
 
-            if (publisherConnection.IsStarted)
+            if (_publisherConnection.IsStarted)
             {
                 _log.LogInformation("Producer and consumer connection started");
             }
 
-            ISession publisherSession = publisherConnection.CreateSession(AcknowledgementMode.ClientAcknowledge);
+            ISession publisherSession = _publisherConnection.CreateSession(AcknowledgementMode.ClientAcknowledge);
             ITextMessage textMsg = GetTextMessageRequest(publisherSession, message);
 
-            _log.LogInformation("Created Publisher Connection {con}", publisherConnection.ToString());
+            _log.LogInformation("Created Publisher Connection {con}", _publisherConnection.ToString());
 
             var topic = _configManager.GetAppSettings().OutboundTopic;
             var topicDestination = SessionUtil.GetTopic(publisherSession, topic);
 
-            publisherConnection.Start();
+            _publisherConnection.Start();
 
-            if (publisherConnection.IsStarted)
+            if (_publisherConnection.IsStarted)
             {
                 _log.LogInformation("Connection started");
             }
 
-            IMessageProducer messagePublisher = publisherSession.CreateProducer(TopicDescription);
+            IMessageProducer messagePublisher = publisherSession.CreateProducer(topicDestination);
             messagePublisher.DeliveryMode = MsgDeliveryMode.Persistent;
             messagePublisher.RequestTimeout = receiveTimeout;
-            _log.LogInformation("Created message producer for destination topic : {d}", TopicDestination);
+            _log.LogInformation("Created message producer for destination topic : {d}", topicDestination);
 
-            messagePublisher.Send(txtMsg);
-            _log.LogInformation("Message send to destination topic : {d}", TopicDestination);
-            DestroyPublisherConnection(publisherConnection);
+            messagePublisher.Send(textMsg);
+            _log.LogInformation("Message send to destination topic : {d}", topicDestination);
+            DestroyPublisherConnection();
         }
         catch (Apache.NMS.ActiveMQ.ConnectionClosedException e1)
         {
@@ -95,32 +100,32 @@ public class BrokerConnectionFactory : IBrokerConnectionFactory
             try
             {
                 _log.LogCritical("Stopping Connection...");
-                if (publisherConnection != null)
+                if (_publisherConnection != null)
                 {
-                    publisherConnection.Stop();
+                    _publisherConnection.Stop();
                 }
             }
             catch (Apache.NMS.ActiveMQ.ConnectionClosedException e2)
             {
                 _log.LogCritical("Connection closed exception thrown while closing a connection. {e2}", e2.StackTrace);
-                if (publisherConnection != null)
+                if (_publisherConnection != null)
                 {
-                    publisherConnection.Stop();
+                    _publisherConnection.Stop();
                 }
             }
             finally
             {
-                if (publisherConnection != null)
+                if (_publisherConnection != null)
                 {
-                    publisherConnection.Stop();
+                    _publisherConnection.Stop();
                 }
             }
             throw;
         }
         catch (Exception e)
         {
-            _log.LogCritical("Error occurred while creation producer : ", e.StackTrace)
-            DestroyPublisherConnection(publisherConnection);
+            _log.LogCritical("Error occurred while creation producer : ", e.StackTrace);
+            DestroyPublisherConnection();
         }
     }
 
@@ -128,7 +133,7 @@ public class BrokerConnectionFactory : IBrokerConnectionFactory
     private ITextMessage GetTextMessageRequest(ISession publisherSession, string message)
     {
         ITextMessage request = publisherSession.CreateTextMessage(message);
-        request.NMCorrelationID = GuidAttribute.NewGuid().ToString();
+        request.NMSCorrelationID = Guid.NewGuid().ToString();
         return request;
     }
 
@@ -161,7 +166,7 @@ public class BrokerConnectionFactory : IBrokerConnectionFactory
 
             _log.LogInformation("Creating new consumer broker connection");
             
-            var brokerUri = _configManager.GetBrokerUri();
+            var brokerUri = _configManager.GetBrokeUrl();
             _consumerConnection = _factory.CreateConnection(_brokerConfiguration.Username, _brokerConfiguration.Password);
             
             _log.LogInformation("Connection created, client ID set");
@@ -176,7 +181,7 @@ public class BrokerConnectionFactory : IBrokerConnectionFactory
                 consumerTcpSession = _consumerConnection.CreateSession(AcknowledgementMode.ClientAcknowledge);
                 _consumerConnection.Start();
 
-                if (_ConsumerConnection.IsStarted)
+                if (_consumerConnection.IsStarted)
                 {
                     _log.LogInformation("Consumer connection started");
                 }
@@ -187,7 +192,7 @@ public class BrokerConnectionFactory : IBrokerConnectionFactory
 
                 if (consumerTcpSession != null)
                 {
-                    var queue = _appSetting.InboundQueue;
+                    var queue = _appSettings.InboundQueue;
                     var queueDestination = SessionUtil.GetQueue(consumerTcpSession, queue);
                     _log.LogInformation("Created message producer for destination queue: {d}", queueDestination);
                     _messageConsumer = consumerTcpSession.CreateConsumer(queueDestination);
@@ -202,13 +207,13 @@ public class BrokerConnectionFactory : IBrokerConnectionFactory
         }
         catch (Exception ex)
         {
-            _log.LogCritical("Error occurred when creating consumer: {e}", ex.StackTrace)
+            _log.LogCritical("Error occurred when creating consumer: {e}", ex.StackTrace);
             DestroyConsumerConnection();
             throw;
         }
     }
 
-    protected async void OnMessage(IMessage receiveMsg)
+    protected async Task OnMessage(IMessage receivedMsg)
     {
         EisEvent eisEvent = null;
         var InboundQueue = _configManager.GetAppSettings().InboundQueue;
@@ -216,7 +221,7 @@ public class BrokerConnectionFactory : IBrokerConnectionFactory
         try
         {
             _log.LogInformation("Receiving the message inside OnMessage");
-            var queueMessage = receiveMsg as ITextMessage;
+            var queueMessage = receivedMsg as ITextMessage;
 
             _log.LogInformation("Received message with Id: {n} ", queueMessage?.NMSMessageId);
             _log.LogInformation("Received message with text: {n} ", queueMessage?.Text);
@@ -232,15 +237,15 @@ public class BrokerConnectionFactory : IBrokerConnectionFactory
             // Check json deserializer exception handling in IN OUT BOX
             _log.LogInformation("Receiving the message: {eisEvent}", eisEvent.EventId.ToString());
 
-            int recordInsertCount = await _eventInOutDbContext.TryEventInsert(eisEvent, InboundQueue, AtleastOnceDeliveryDirection.IN);
+            int recordInsertCount = await _eventInOutDbContext.TryEventInsert(eisEvent, InboundQueue, AtLeastOnceDeliveryDirection.IN);
 
             // If the record is new, and status is 1 then process data
             if (recordInsertCount == 1)
             {
                 _log.LogInformation("INBOX::NEW [Insert] status {a}", recordInsertCount);
                 await UtilityClass.ConsumeEventAsync(eisEvent, InboundQueue, _eventRegistry, _log);
-                var updateStatus = await _eventINOUTDbContext.UpdateEventStatus(eisEvent.EventId, InboundQueue, EisSystemVariable.PROCESS, AtLeastOnceDeliveryDirection.IN);
-                _log.LogInformation("INBOX::NEW [Processed] status: {b} ", UpdateStatus);
+                var updateStatus = await _eventINOUTDbContext.UpdateEventStatus(eisEvent.EventId, InboundQueue,  EisSystemVariables.PROCESSED, AtLeastOnceDeliveryDirection.IN);
+                _log.LogInformation("INBOX::NEW [Processed] status: {b} ", updateStatus);
             }
             else
             {
@@ -255,7 +260,7 @@ public class BrokerConnectionFactory : IBrokerConnectionFactory
         }
         catch (Exception ex)
         {
-            await _eventINOUTDbContext.UpdateEventStatus(eisEvent?.EventId, InboundQueue, EisSystemVariable.FAILED, AtLeastOnceDeliveryDirection.IN);
+            await _eventINOUTDbContext.UpdateEventStatus(eisEvent?.EventId, InboundQueue, EisSystemVariables.FAILED, AtLeastOnceDeliveryDirection.IN);
             _log.LogError("Exception in OnMessage: {eisEvent}", ex.Message);
             // Should not throw exceptions - Create EISMessageProcessExceptions to catch and update the status.
         }
@@ -299,19 +304,19 @@ public class BrokerConnectionFactory : IBrokerConnectionFactory
             
             if (GlobalVariables.IsTransportInterrupted)
             {
-                _log.LogInformation("Destroy consumer connection transport already stopped")
+                _log.LogInformation("Destroy consumer connection transport already stopped");
             }
             else
             {
-                if (_ConsumerConnection != null)
+                if (_consumerConnection != null)
                 {
-                    _ConsumerConnection.ConnectionInterruptedListener -= interruptedListener;
-                    _ConsumerConnection.ExceptionListener -= connectionListener;
-                    publisherConnection.Stop();
-                    publisherConnection.Close();
-                    publisherConnection.Dispose();
+                    _consumerConnection.ConnectionInterruptedListener -= interruptedListener;
+                    _consumerConnection.ExceptionListener -= connectionListener;
+                    _consumerConnection.Stop();
+                    _consumerConnection.Close();
+                    _consumerConnection.Dispose();
 
-                    _log.LogInformation("Destroyed consumer connection - disposed")
+                    _log.LogInformation("Destroyed consumer connection - disposed");
                 }
             }
         }
@@ -329,16 +334,16 @@ public class BrokerConnectionFactory : IBrokerConnectionFactory
         {
             if (GlobalVariables.IsTransportInterrupted)
             {
-                _log.LogInformation("Destroy producer connection stopped transport")
+                _log.LogInformation("Destroy producer connection stopped transport");
             }
             else
             {
-                if (publisherConnection != null)
+                if (_publisherConnection != null)
                 {
-                    publisherConnection.Stop();
-                    publisherConnection.Close();
-                    publisherConnection.Dispose();
-                    _log.LogInformation("Destroyed producer connection - disposed")
+                    _publisherConnection.Stop();
+                    _publisherConnection.Close();
+                    _publisherConnection.Dispose();
+                    _log.LogInformation("Destroyed producer connection - disposed");
                 }
             }
         }

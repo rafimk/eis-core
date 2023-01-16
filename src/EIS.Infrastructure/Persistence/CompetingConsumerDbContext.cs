@@ -1,7 +1,10 @@
 using Dapper;
-using System.Security.Cryptography.X509Certificates;
+using Microsoft.Data.SqlClient;
+using EIS.Application.Interfaces;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Configuration;
+using System.Threading.Tasks;
 using System;
-using System.Data.SqlClient;
 
 namespace EIS.Infrastructure.Persistence;
 
@@ -20,7 +23,7 @@ public class CompetingConsumerDbContext : ICompetingConsumerDbContext
         HostIp = _configuration["environment:profile"];
     }
 
-    public void setHostIpAddress(string hostIp)
+    public void SetHostIpAddress(string hostIp)
     {
         HostIp = hostIp;
     }
@@ -38,56 +41,35 @@ public class CompetingConsumerDbContext : ICompetingConsumerDbContext
                 "WHERE NOT EXISTS (SELECT 1 FROM EIS_COMPETING_CONSUMER_GROUP WITH (nolock) WHERE GROUP_KEY = @eisGroupKey))";
 
                 _log.LogDebug("Executing query: {sql} with variables [{id}, {eisGroupKey}, {HostIp]}]", sql, id, eisGroupKey, HostIp);
-                return await Connection.ExecuteAsync(sql, new { id, eisGroupKey, HostIp});
+                return await connection.ExecuteAsync(sql, new { id, eisGroupKey, HostIp});
             }
             catch (Exception e)
             {
-                _log.LogError("Database Error: {e}", e.Message)
+                _log.LogError("Database Error: {e}", e.Message);
                 throw;
             }
         }
     }
 
-    public async Task<int> KeepAliveEntry(bool IsStarted, string eisGroupKey)
+    public async Task<int> KeepAliveEntry(bool isStarted, string eisGroupKey)
     {
         using (var connection = new SqlConnection(_databaseName))
         {
             try
             {
-                int startStatus = isStared ? 1 : 0;
+                int startStatus = isStarted ? 1 : 0;
                 _log.LogInformation("Keep alive entry....");
 
                 string sql = "UPDATE EIS_COMPETING_CONSUMER_GROUP SET LAST_ACCESSED_TIMESTAMP = GetDate() WHERE GROUP_KEY = @eisGroupKey AND " +
                 "HOST_IP_ADDRESS = @HostIp AND 1 = @startStatus ";
 
-                _log.LogDebug("Executing query: {sql} with variables [{eisGroupJey}, {HostIp}, {startStatus}] ", sql, eisGroupKey, startStatus);
+                _log.LogDebug("Executing query: {sql} with variables [{eisGroupJey}, {HostIp}, {startStatus}] ", sql, eisGroupKey, HostIp, startStatus);
 
                 return await connection.ExecuteAsync(sql, new {eisGroupKey, HostIp, startStatus});
             }
             catch (Exception ex)
             {
                 _log.LogError("Database error: {e}", ex.Message);
-                throw;
-            }
-        }
-    }
-
-    public async Task<int> DeleteStateEntry(string eisGroupKey, int eisGroupRefreshInterval)
-    {
-        using (var connection = new SqlConnection(_databaseName))
-        {
-            try
-            {
-                string sql = "DELETE FROM EIS_COMPETING_CONSUMER_GROUP WHERE " +
-                "DATEDIFF(MINUTE, LAST_ACCESSED_TIMESTAMP, GETDATE()) > @eisGroupRefreshInterval " +
-                "AND GROUP_KEY = @eisGroupKey";
-                _log.LogDebug("Executing query: {sql} with variables {eisGroupRefreshInterval}, {eisGroupKey}", sql, eisGroupRefreshInterval, eisGroupKey);
-
-                return await connection.ExecuteAsync(sql, new {eisGroupRefreshInterval, eisGroupKey});
-            }
-            catch (Exception ex)
-            {
-                _log.LogError("Database Error: {e}", ex.Message);
                 throw;
             }
         }
@@ -102,7 +84,7 @@ public class CompetingConsumerDbContext : ICompetingConsumerDbContext
                 string sql = "SELECT HOST_IP_ADDRESS FROM EIS_COMPETING_CONSUMER_GROUP WITH (nolock) WHERE GROUP_KEY = @eisGroupKey " +
                 "AND DATEDIFF(MINUTE, GETDATE(), LAST_ACCESSED_TIMESTAMP) <= @eisGroupRefreshInterval";
 
-                _LOG.LogDebug("Executing query: {sql} with variables {eisGroupKey}, {eisGroupRefreshInterval}", sql, eisGroupKey, eisGroupRefreshInterval);
+                _log.LogDebug("Executing query: {sql} with variables {eisGroupKey}, {eisGroupRefreshInterval}", sql, eisGroupKey, eisGroupRefreshInterval);
 
                 string result = connection.QuerySingleOrDefault<string>(sql, new {eisGroupKey, eisGroupRefreshInterval});
                 _log.LogDebug("IP address from query: [ {result} ]", result);
@@ -111,6 +93,27 @@ public class CompetingConsumerDbContext : ICompetingConsumerDbContext
             catch (Exception e)
             {
                 _log.LogError("Database error: {e}", e.Message);
+                throw;
+            }
+        }
+    }
+
+    public async Task<int> DeleteStaleEntry(string eisGroupKey, int eisGroupRefreshInterval)
+    {
+        using (var connection = new SqlConnection(_databaseName))
+        {
+            try
+            {
+                string sql = "DELETE FROM EIS_COMPETING_CONSUMER_GROUP WHERE " +
+                "DATEDIFF(MINUTE, LAST_ACCESSED_TIMESTAMP, GETDATE()) > @eisGroupRefreshInterval " +
+                "AND GROUP_KEY = @eisGroupKey";
+                _log.LogDebug("Executing query: {sql} with variables {eisGroupRefreshInterval}, {eisGroupKey}", sql, eisGroupRefreshInterval, eisGroupKey);
+
+                return await connection.ExecuteAsync(sql, new { eisGroupRefreshInterval, eisGroupKey });
+            }
+            catch (Exception ex)
+            {
+                _log.LogError("Database Error: {e}", ex.Message);
                 throw;
             }
         }
