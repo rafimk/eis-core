@@ -92,11 +92,11 @@ public class DatabaseBootstrap : IDatabaseBootstrap
 
          if (outboxEventList != null && outboxEventList.Count > 0)
         {
-            GlobalVariables.isUnprocessedOutMessagePresentInDB = true;
+            GlobalVariables.IsUnprocessedOutMessagePresentInDB = true;
         }
         else
         {
-            GlobalVariables.isUnprocessedOutMessagePresentInDB = false;
+            GlobalVariables.IsUnprocessedOutMessagePresentInDB = false;
         }
 
     }

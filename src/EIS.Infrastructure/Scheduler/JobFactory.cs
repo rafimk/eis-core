@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection;
 using Quartz;
 using Quartz.Spi;
 using System;
@@ -15,6 +16,7 @@ public class JobFactory : IJobFactory
 
     public IJob NewJob(TriggerFiredBundle bundle, IScheduler scheduler)
     {
+        return _serviceProvider.GetRequiredService(bundle.JobDetail.JobType) as IJob;
     }
 
     public void ReturnJob(IJob job)

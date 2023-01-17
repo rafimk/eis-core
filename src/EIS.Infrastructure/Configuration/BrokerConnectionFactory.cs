@@ -43,7 +43,7 @@ public class BrokerConnectionFactory : IBrockerConnectionFactory
         var _appSetting = configurationManager.GetAppSettings();
         _brokerConfiguration = _configManager.GetBrokerConfiguration();
         _eventRegistry = new EventHandlerRegistry();
-        var brokerUrl = _configManager.GetBrokeUrl();
+        var brokerUrl = _configManager.GetBrokerUrl();
         _log.LogInformation("Broker Connection Factory >> Initializing broker connections.");
         _log.LogInformation("Broker - {brokerUrl}", brokerUrl);
         _connectUri = new Uri(brokerUrl);
@@ -166,7 +166,7 @@ public class BrokerConnectionFactory : IBrockerConnectionFactory
 
             _log.LogInformation("Creating new consumer broker connection");
             
-            var brokerUri = _configManager.GetBrokeUrl();
+            var brokerUri = _configManager.GetBrokerUrl();
             _consumerConnection = _factory.CreateConnection(_brokerConfiguration.Username, _brokerConfiguration.Password);
             
             _log.LogInformation("Connection created, client ID set");
@@ -213,7 +213,7 @@ public class BrokerConnectionFactory : IBrockerConnectionFactory
         }
     }
 
-    protected async Task OnMessage(IMessage receivedMsg)
+    protected async void OnMessage(IMessage receivedMsg)
     {
         EisEvent eisEvent = null;
         var InboundQueue = _configManager.GetAppSettings().InboundQueue;
@@ -244,7 +244,7 @@ public class BrokerConnectionFactory : IBrockerConnectionFactory
             {
                 _log.LogInformation("INBOX::NEW [Insert] status {a}", recordInsertCount);
                 await UtilityClass.ConsumeEventAsync(eisEvent, InboundQueue, _eventRegistry, _log);
-                var updateStatus = await _eventINOUTDbContext.UpdateEventStatus(eisEvent.EventId, InboundQueue,  EisSystemVariables.PROCESSED, AtLeastOnceDeliveryDirection.IN);
+                var updateStatus = await _eventInOutDbContext.UpdateEventStatus(eisEvent.EventId, InboundQueue,  EisSystemVariables.PROCESSED, AtLeastOnceDeliveryDirection.IN);
                 _log.LogInformation("INBOX::NEW [Processed] status: {b} ", updateStatus);
             }
             else
@@ -260,7 +260,7 @@ public class BrokerConnectionFactory : IBrockerConnectionFactory
         }
         catch (Exception ex)
         {
-            await _eventINOUTDbContext.UpdateEventStatus(eisEvent?.EventId, InboundQueue, EisSystemVariables.FAILED, AtLeastOnceDeliveryDirection.IN);
+            await _eventInOutDbContext.UpdateEventStatus(eisEvent?.EventId, InboundQueue, EisSystemVariables.FAILED, AtLeastOnceDeliveryDirection.IN);
             _log.LogError("Exception in OnMessage: {eisEvent}", ex.Message);
             // Should not throw exceptions - Create EISMessageProcessExceptions to catch and update the status.
         }
@@ -311,14 +311,15 @@ public class BrokerConnectionFactory : IBrockerConnectionFactory
                 if (_consumerConnection != null)
                 {
                     _consumerConnection.ConnectionInterruptedListener -= interruptedListener;
-                    _consumerConnection.ExceptionListener -= connectionListener;
+                    _consumerConnection.ExceptionListener -= connectionExceptionListener;
                     _consumerConnection.Stop();
                     _consumerConnection.Close();
                     _consumerConnection.Dispose();
-
+                    _log.LogInformation("Consumer Connection started : " + _consumerConnection.IsStarted);
                     _log.LogInformation("Destroyed consumer connection - disposed");
                 }
             }
+            _consumerConnection = null;
         }
         catch (Exception ex)
         {

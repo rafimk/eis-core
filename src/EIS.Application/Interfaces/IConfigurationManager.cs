@@ -4,7 +4,7 @@ namespace EIS.Application.Interfaces;
 
 public interface IConfigurationManager
 {
-    string GetBrokeUrl();
+    string GetBrokerUrl();
     ApplicationSettings GetAppSettings();
     BrokerConfiguration GetBrokerConfiguration();
     void Dispose();

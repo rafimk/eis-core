@@ -45,7 +45,7 @@ public class ConfigurationManager : IConfigurationManager
         string eisSettingsFileName = "EISCore.eissettings.json";
         _log.LogInformation("Loading assemblies");
         _log.LogInformation("Settings loading from {a}", eisSettingsFileName);
-        Stream stream = AssemblyBuilder.GetManifestResourceStream(eisSettingsFileName);
+        Stream stream = assembly.GetManifestResourceStream(eisSettingsFileName);
         var configurationBuilder = new ConfigurationBuilder();
         configurationBuilder.AddJsonStream(stream);
         var configSectionFromFile = configurationBuilder.Build();
@@ -56,7 +56,7 @@ public class ConfigurationManager : IConfigurationManager
 
         if (environment != null)
         {
-            eisSettingsFileName = eisSettingsFileName.Replace(".json", string.Empty) + "-" + Environment.ToLower() + ".json";
+            eisSettingsFileName = eisSettingsFileName.Replace(".json", string.Empty) + "-" + environment.ToLower() + ".json";
             _log.LogInformation("Loading : {n}", eisSettingsFileName);
             stream = assembly.GetManifestResourceStream(eisSettingsFileName);
             configurationBuilder = new ConfigurationBuilder();

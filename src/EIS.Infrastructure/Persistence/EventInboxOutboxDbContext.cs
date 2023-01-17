@@ -35,11 +35,11 @@ public class EventInboxOutboxDbContext : IEventInboxOutboxDbContext
             try
             {
                 string objString = JsonSerializerUtil.SerializeEvent(eisEvent);
-                var Id = Guid.NewGuid().ToString();
+                var id = Guid.NewGuid().ToString();
 
                 _log.LogDebug("Executing query: {sql} with variables [{Id}, {eisEvent.EventId}, {topicQueueName}, {objString}, {direction}]", sql, id, eisEvent.EventId, topicQueueName, objString, direction);
 
-                return await connection.ExecuteAsync(sql, new { Id, eisEvent.EventId, topicQueueName, objString, direction });
+                return await connection.ExecuteAsync(sql, new { id, eisEvent.EventId, topicQueueName, objString, direction });
             }
             catch (Exception e)
             {
@@ -60,9 +60,9 @@ public class EventInboxOutboxDbContext : IEventInboxOutboxDbContext
                 _log.LogDebug("Executing query : {sql} with variables [{eventStatus}, {eventId}, {topicQueueName}, {direction}]", sql, eventStatus, eventId, topicQueueName, direction);
                 return await connection.ExecuteAsync(sql, new { eventStatus, eventId, topicQueueName, direction});
             }
-            catch (Exception e)
+            catch (Exception ex)
             {
-                _log.LogError("Database Error: {e}", e.Message);
+                _log.LogError("Database Error: {ex}", ex.Message);
                 throw;
             }
         }
@@ -81,9 +81,9 @@ public class EventInboxOutboxDbContext : IEventInboxOutboxDbContext
                 var listOfEvents = await connection.QueryAsync<EisEventInboxOutbox>(sql, new {direction, topicQueueName});
                 return listOfEvents.AsList();
             }
-            catch (System.Exception)
+            catch (Exception ex)
             {
-                _log.LogError("Database Error: {e}", e.Message);
+                _log.LogError("Database Error: {ex}", ex.Message);
                 throw;
             }
         }
