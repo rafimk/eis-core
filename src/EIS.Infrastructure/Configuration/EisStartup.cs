@@ -35,7 +35,7 @@ public static class EisStartup
             ["quartz.scheduler.instanceId"] = "ConsumerQuartzInstance"
         };
 
-        services.AddSingleton<ISchedulerFactory>(sf = new StdSchedulerFactory(properties));
+        services.AddSingleton<ISchedulerFactory>(sf => new StdSchedulerFactory(properties));
         services.AddHostedService<QuartzHostedService>();
 
         services.Configure<QuartzOptions>(options => 
