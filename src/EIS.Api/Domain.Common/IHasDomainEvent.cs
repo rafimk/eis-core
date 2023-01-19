@@ -1,0 +1,6 @@
+namespace EIS.Api.Domain.Common;
+
+public interface IHasDomainEvent
+{
+    public List<DomainEvent> DomainEvents { get; set;} 
+}
