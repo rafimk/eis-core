@@ -3,6 +3,12 @@ using System.Transactions;
 using System.Diagnostics;
 using System;
 using System.Runtime.CompilerServices;
+using EIS.Application.Interfaces;
+using EIS.Domain.Entities;
+using MediatR;
+using EIS.Api.Application.MDM.Common;
+using EIS.Api.Application.Constants;
+
 namespace EIS.Api.Infrastructure.Integration.Service;
 
 public class EisEventProcessorService : IMessageProcessor
@@ -24,7 +30,7 @@ public class EisEventProcessorService : IMessageProcessor
         var payloadContent = payload.Content;
         object payloadContractCommand = null;
 
-        var sourceSystemName = payload?.sourceSystemName;
+        var sourceSystemName = payload?.SourceSystemName;
 
         if (sourceSystemName.Equals("MDM"))
         {

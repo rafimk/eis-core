@@ -1,3 +1,7 @@
+using EIS.Api.Application.Common.Interfaces;
+using EIS.Api.Application.Common.Models;
+using EIS.Api.Domain.Common;
+using MediatR;
 using System;
 namespace EIS.Api.Infrastructure.Integration.Service;
 

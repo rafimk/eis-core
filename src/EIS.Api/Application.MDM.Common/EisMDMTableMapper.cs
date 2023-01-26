@@ -1,4 +1,6 @@
 using System.Runtime.Serialization.Json;
+using System.Text.Json;
+
 namespace EIS.Api.Application.MDM.Common;
 
 public class EisMDMTableMapper

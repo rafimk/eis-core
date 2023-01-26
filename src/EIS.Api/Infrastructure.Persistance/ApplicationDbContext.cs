@@ -1,4 +1,6 @@
-using System.Runtime.Intrinsics.Arm.Arm64;
+using EIS.Api.Application.Common.Interfaces;
+using EIS.Api.Domain.Common;
+using Microsoft.EntityFrameworkCore;
 using System.Threading;
 namespace Infrastructure.Persistance;
 
@@ -14,13 +16,13 @@ public class ApplicationDbContext : DbContext
 
     public override async Task<int> SaveChangesAsync(CancellationToken CancellationToken = new CancellationToken())
     {
-        var result = await Base.SaveChangesAsync(CancellationToken);
+        var result = await base.SaveChangesAsync(CancellationToken);
         await DispatchEvents();
     }
 
     private async Task DispatchEvents()
     {
-        white (true)
+        while (true)
         {
             var domainEventEntity = ChangeTracker.Entries<IHasDomainEvent>()
                 .Select(x => x.Entity.DomainEvents)
