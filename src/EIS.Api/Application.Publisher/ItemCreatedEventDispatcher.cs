@@ -5,15 +5,18 @@ using EIS.Api.Application.Common.Models;
 using MediatR;
 using Microsoft.AspNetCore.DataProtection.KeyManagement;
 using EIS.Api.Application.Constants;
+using EIS.Application.Interfaces;
+using EIS.Api.Application.Contrats;
+using EIS.Domain.Entities;
 
 namespace EIS.Api.Application.Publisher;
 
 public class ItemCreatedEventDispatcher : INotificationHandler<DomainEventNotification<ItemCreatedEvent>>
 {
     private readonly ILogger<ItemCreatedEventDispatcher> _logger;
-    private readonly IDomainEventDispatcher<ItemManager> _domainEventDispatcher;
+    private readonly IDomainEventDispatcher<ItemMaster> _domainEventDispatcher;
 
-    public ItemCreatedEventDispatcher(ILogger<ItemCreatedEventDispatcher> logger, IDomainEventDispatcher<ItemManager> domainEventDispatcher) 
+    public ItemCreatedEventDispatcher(ILogger<ItemCreatedEventDispatcher> logger, IDomainEventDispatcher<ItemMaster> domainEventDispatcher) 
     {
         _logger = logger;
         _domainEventDispatcher = domainEventDispatcher;
@@ -27,7 +30,7 @@ public class ItemCreatedEventDispatcher : INotificationHandler<DomainEventNotifi
     }
 }
 
-public class ItemCreatedDispatcher : IDomainEventDispatcher<ItemManager>
+public class ItemCreatedDispatcher : IDomainEventDispatcher<ItemMaster>
 {
     private readonly IEventPublisherService _eventDispatcherService;
 
@@ -40,15 +43,12 @@ public class ItemCreatedDispatcher : IDomainEventDispatcher<ItemManager>
     {
         if (EISConstants.PublishStatus)
         {
-            var ItemCreatedContract = new ItemCreatedContract
-            {
+            var temCreatedContract = new ItemCreatedContract(itemMaster.Id, itemMaster.ItemName, itemMaster.Created);
 
-            };
-
-            Payload itemCreatedPayload = new (ItemCreatedContract, "ItemCreated", "Item-Management");
+            Payload itemCreatedPayload = new Payload(ItemCreatedContract, "ItemCreated", "Item-Management");
             EisEventPayloadBehavior eisItemCreatedPayloadBehaviour = new(itemCreatedPayload, eventType);
 
-            await _eventDispatcherService.Publish()
+            await _eventDispatcherService.Publish();
         }
 
         await Task.Completed;
