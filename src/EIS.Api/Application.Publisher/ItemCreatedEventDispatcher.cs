@@ -25,7 +25,7 @@ public class ItemCreatedEventDispatcher : INotificationHandler<DomainEventNotifi
     public async Task Handle(DomainEventNotification<ItemCreatedEvent> notification, CancellationToken cancellationToken)
     {
         var domainEvent = notification.DomainEvent;
-        await _domainEventDispatcher.DispatchEvent(domainEvent., EISEventTypes.ItemManagement.ITEM_CREATED);
+        await _domainEventDispatcher.DispatchEvent(domainEvent.Item, EISEventTypes.ItemManagement.ITEM_CREATED);
         _logger.LogInformation("Item created event published");
     }
 }
