@@ -30,7 +30,7 @@ public class ItemCreatedEventDispatcher : INotificationHandler<DomainEventNotifi
     }
 }
 
-public class ItemCreatedDispatcher : IDomainEventDispatcher<ItemMaster>
+public class ItemCreatedDispatcher : IDomainEventDispatcher<ItemCreated>
 {
     private readonly IEventPublisherService _eventDispatcherService;
 
@@ -39,7 +39,7 @@ public class ItemCreatedDispatcher : IDomainEventDispatcher<ItemMaster>
         _eventDispatcherService = eventDispatcherService;
     }
 
-    public async Task DispatchEvent(ItemMaster itemMaster, string eventType)
+    public async Task DispatchEvent(ItemCreated itemCreated, string eventType)
     {
         if (EISConstants.PublishStatus)
         {

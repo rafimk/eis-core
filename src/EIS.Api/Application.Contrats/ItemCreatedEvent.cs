@@ -1,12 +1,12 @@
 ﻿namespace EIS.Api.Application.Contrats
 {
-    public record ItemCreatedContract(Guid Id, string ItemName, DateTime Created);
+    public record ItemCreated(Guid Id, string ItemName, DateTime Created);
 
     public class ItemCreatedEvent : DomainEvent
     {
-        public ItemCreatedContract Item { get; }
+        public ItemCreated Item { get; }
 
-        public ItemCreatedEvent(ItemCreatedContract item)
+        public ItemCreatedEvent(ItemCreated item)
         {
             Item = item;
         }
