@@ -1,4 +1,9 @@
-﻿namespace EIS.Api.Application.Contrats
+﻿namespace EIS.Api.Application.Contrats;
+
+public class ItemCreatedContract
 {
-    public record ItemCreatedContract(Guid Id, string ItemName, DateTime Created);
+    public Guid Id { get; set; }
+    public string ItemName { get; set; }
+    public DateTime Created { get; set; }
 }
+

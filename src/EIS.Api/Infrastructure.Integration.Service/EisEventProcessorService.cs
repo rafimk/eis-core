@@ -8,6 +8,9 @@ using EIS.Domain.Entities;
 using MediatR;
 using EIS.Api.Application.MDM.Common;
 using EIS.Api.Application.Constants;
+using EIS.Api.Application.Common.Behaviour;
+using EIS.Api.Application.Contrats;
+using EIS.Application.Util;
 
 namespace EIS.Api.Infrastructure.Integration.Service;
 
@@ -40,7 +43,7 @@ public class EisEventProcessorService : IMessageProcessor
 
             if (tableName == null)
             {
-                throw new DllNotFoundException(nameof(EisEventProcessorService), "Payload content type is bull");
+                throw new NullReferenceException("Content Type is null!");
             }
 
             payloadContractCommand = EisMDMTableMapper.MapTableToSerializedObject(tableName, payloadContent.ToString());
@@ -50,7 +53,7 @@ public class EisEventProcessorService : IMessageProcessor
         {
             if (eventType.Equals(EISEventTypes.ItemManagement.ITEM_CREATED))
             {
-                payloadContractCommand = EIS.Application.Util.JsonSerializeObject<ItemCreatedCommand>(payloadContent.ToString());
+                payloadContractCommand = JsonSerializerUtil.DeserializeObject<ItemCreatedContract>(payloadContent.ToString());
             }
         }
 

@@ -8,15 +8,17 @@ using EIS.Api.Application.Constants;
 using EIS.Application.Interfaces;
 using EIS.Api.Application.Contrats;
 using EIS.Domain.Entities;
+using EIS.Api.Domain.Common;
+using EIS.Api.Application.Common.Behaviour;
 
 namespace EIS.Api.Application.Publisher;
 
 public class ItemCreatedEventDispatcher : INotificationHandler<DomainEventNotification<ItemCreatedEvent>>
 {
     private readonly ILogger<ItemCreatedEventDispatcher> _logger;
-    private readonly IDomainEventDispatcher<ItemMaster> _domainEventDispatcher;
+    private readonly IDomainEventDispatcher<ItemCreated> _domainEventDispatcher;
 
-    public ItemCreatedEventDispatcher(ILogger<ItemCreatedEventDispatcher> logger, IDomainEventDispatcher<ItemMaster> domainEventDispatcher) 
+    public ItemCreatedEventDispatcher(ILogger<ItemCreatedEventDispatcher> logger, IDomainEventDispatcher<ItemCreated> domainEventDispatcher) 
     {
         _logger = logger;
         _domainEventDispatcher = domainEventDispatcher;
@@ -43,15 +45,20 @@ public class ItemCreatedDispatcher : IDomainEventDispatcher<ItemCreated>
     {
         if (EISConstants.PublishStatus)
         {
-            var temCreatedContract = new ItemCreatedContract(itemMaster.Id, itemMaster.ItemName, itemMaster.Created);
+            ItemCreatedContract itemCreatedContract = new ItemCreatedContract
+            {
+                Id = itemCreated.Id,
+                ItemName = itemCreated.ItemName,
+                Created = itemCreated.Created
+            };
 
-            Payload itemCreatedPayload = new Payload(ItemCreatedContract, "ItemCreated", "Item-Management");
-            EisEventPayloadBehavior eisItemCreatedPayloadBehaviour = new(itemCreatedPayload, eventType);
+            Payload itemCreatedPayload = new Payload(itemCreatedContract, "ItemCreated", "Item-Management");
+            EisEventPayloadBehaviour eisItemCreatedPayloadBehaviour = new(itemCreatedPayload, eventType);
 
-            await _eventDispatcherService.Publish();
+            await _eventDispatcherService.Publish(eisItemCreatedPayloadBehaviour);
         }
 
-        await Task.Completed;
+        await Task.CompletedTask;
     }
 
 }

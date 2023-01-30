@@ -18,6 +18,7 @@ public class ApplicationDbContext : DbContext
     {
         var result = await base.SaveChangesAsync(CancellationToken);
         await DispatchEvents();
+        return result;
     }
 
     private async Task DispatchEvents()
